@@ -18,7 +18,7 @@ static int my_init(void){
 	printk(KERN_INFO "%s %p\n", "my_init function address: ", my_init);
 	printk(KERN_INFO "%s %p\n", "bus_register function address: ",
 	       bus_register);
-	printk(KERN_INFO "%s %pS\n", "__builtin_return_address(0): ",
+	printk(KERN_INFO "%s %pF\n", "__builtin_return_address(0): ",
 		       __builtin_return_address(0));
 	return 0;
 }

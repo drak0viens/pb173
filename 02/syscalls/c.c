@@ -4,6 +4,7 @@
 
 int main(void)
 {
-	printf("syscall retval=%ld\n", syscall(__NR_fork));
+        char * str = "Hi\n";
+	printf("syscall retval=%ld\n", syscall(__NR_write, 1, (void *) str, (size_t) 3));
 	return 0;
 }
