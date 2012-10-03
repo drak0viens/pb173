@@ -56,8 +56,8 @@ ssize_t my_read(struct file *filp, char __user *buf, size_t count, loff_t *offp)
 			strcpy(str, "Ahoj");
 	}
 	if (copy_to_user(buf, str, sizeof(str))) return -EFAULT;
-	count = char_count + 1;
-	return 0;
+	return char_count;
+	
 }
 
 long my_unlocked_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
@@ -103,8 +103,8 @@ struct miscdevice misc = {
 static int my_init(void)
 {
 	misc_register(&misc);
-	printk(KERN_INFO "get cmd: %d\n", MY_READ);
-	printk(KERN_INFO "set cmd: %d\n", MY_WRITE);
+	printk(KERN_INFO "ioctl GET cmd: %d\n", MY_READ);
+	printk(KERN_INFO "ioctl SET cmd: %d\n", MY_WRITE);
 	return 0;
 }
 
