@@ -21,6 +21,7 @@ struct dentry * debug_dir;
 struct dentry * counter_file;
 struct dentry * bindata_file;
 
+<<<<<<< HEAD
 int my_open(struct inode *inode, struct file *filp){
 	printk(KERN_INFO "Opening device..\n");
 	count++;
@@ -130,6 +131,21 @@ static int my_init(void)
 	bindata_file = debugfs_create_file("bindata", S_IRUSR, debug_dir, THIS_MODULE->module_core,
 					   &fops_debug);
 	return 0;
+=======
+static int my_init(void)
+{
+#define prn(x) printk(x "level " #x " %c\n", (x)[1]);
+prn(KERN_EMERG);
+prn(KERN_ALERT);
+prn(KERN_CRIT);
+prn(KERN_ERR);
+prn(KERN_WARNING);
+prn(KERN_NOTICE);
+prn(KERN_INFO);
+prn(KERN_DEBUG);
+
+return -EIO;
+>>>>>>> ea18a4347936659c79fe5b406d084effd93b199b
 }
 
 static void my_exit(void)
