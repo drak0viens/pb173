@@ -147,7 +147,7 @@ static const struct file_operations fops_debug = {
 static ssize_t buf_read(struct file *filp, char __user *buf, size_t count,
                 loff_t *off)
 {
-        if (*off >= 127 || !count)
+        if (*off > 127 || !count)
                 return 0;
 
 	mutex_lock(&buf_mutex);
@@ -191,7 +191,6 @@ int my_write_open(struct inode *inode, struct file *filp){
 int my_write_release(struct inode *inode, struct file *filp){
 	/* decrease count of writers */
 	if (filp->f_mode & FMODE_WRITE) {
-       
                 spin_lock_irq(&writers_lock);
                 writers--;
                 spin_unlock_irq(&writers_lock);
