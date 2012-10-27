@@ -328,13 +328,13 @@ static int my_init(void)
 		return -ENOMEM;
 	}
 
-	unsigned long i;
+	unsigned long i, pfn;
 
 	/* iterate allocated pages */	
 	for (i = 0; i < 20971520; i += PAGE_SIZE) {
 
 		/* get pfn */
-		unsigned long pfn = vmalloc_to_pfn(&(mem_buffer[i]));
+		pfn = vmalloc_to_pfn(&(mem_buffer[i]));
 		/* get phys address */
 		phys_addr_t phys = pfn << PAGE_SHIFT;
 		/* write string <Virt> : <Phys>\n to current page */
