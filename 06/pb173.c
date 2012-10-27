@@ -323,7 +323,10 @@ static int my_init(void)
 
 	/* allocate buffer and zero memory */
 	mem_buffer = (char*) vzalloc(20971520);
-	if (!mem_buffer) printk(KERN_INFO "20MB allocation error..");
+	if (!mem_buffer) {
+		printk(KERN_INFO "20MB allocation error..");
+		return -ENOMEM;
+	}
 
 	unsigned long i;
 
