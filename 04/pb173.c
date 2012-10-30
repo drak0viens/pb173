@@ -103,17 +103,16 @@ long my_unlocked_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 	}
 
 	/* Copy current char_count to userspace buffer */
-	if (cmd == MY_READ){
-		int err;
-		
-		spin_lock_irq(&char_lock);
-		err = copy_to_user((void *) arg, &char_count, sizeof(int));
-		spin_unlock_irq(&char_lock); 
-		
-		if (err)
-			return -EFAULT;
+        if (cmd == MY_READ){
+                int char_count_cpy;
+
+                spin_lock_irq(&char_lock);
+                char_count_cpy = char_count;    
+                spin_unlock_irq(&char_lock); 
+
+                if (copy_to_user((void *) arg, &char_count_cpy, sizeof(int)))
+                        return -EFAULT;
 	}  
-	return 0;
 }
 
 struct file_operations my_fops = {

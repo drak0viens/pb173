@@ -107,15 +107,15 @@ long my_unlocked_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 
 	/* Copy current char_count to userspace buffer */
 	if (cmd == MY_READ){
-		int err;
-		
+		int char_count_cpy;
+
 		spin_lock_irq(&char_lock);
-		err = copy_to_user((void *) arg, &char_count, sizeof(int));
+		char_count_cpy = char_count;  	
 		spin_unlock_irq(&char_lock); 
-		
-		if (err)
+
+		if (copy_to_user((void *) arg, &char_count_cpy, sizeof(int)))
 			return -EFAULT;
-	}  
+		}  
 	return 0;
 }
 
@@ -249,12 +249,8 @@ static struct miscdevice my_write_misc = {
 /* hw 06 - read device */
 static ssize_t mem_buf_read(struct file *filp, char __user *buf, size_t count,
                 loff_t *off)
-{
-        if (*off > 20971520 || !count)
-                return 0;
-
-	count = simple_read_from_buffer(buf, count, off, mem_buffer, 20971520);
-	return count;
+	{
+	return simple_read_from_buffer(buf, count, off, mem_buffer, 20971520);
 	}
 
 /* read device file ops */
@@ -271,20 +267,9 @@ static struct miscdevice mem_buf_read_misc = {
 
 /* hw 06 - write device */
 static ssize_t mem_buf_write(struct file *filp, const char __user *buf, size_t count,
-                loff_t *off)
-{
-	/* check offset */
-	if (*off > 20971519)
-		return 0;
-	/* check count + offset */
-	if (*off + count > 20971519)
-		count = 20971519 - *off;
-	/* copy data from userspace */
-	if (copy_from_user(mem_buffer, buf, count))
-		return -EFAULT;
-
-	*off += count;
-	return count;
+                loff_t *off) 
+	{
+	return simple_write_to_buffer(mem_buffer, 20971520, off, buf, count);
 	}
 
 /* write device file ops */
