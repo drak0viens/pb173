@@ -34,9 +34,10 @@ struct miscdevice misc = {
 
 static int my_init(void)
 {
-	INIT_KFIFO(my_fifo);
-	misc_register(&misc);
 	/* initialize fifo  */
+	INIT_KFIFO(my_fifo);
+	/* register device */
+	misc_register(&misc);
 	return 0;
 }
 
