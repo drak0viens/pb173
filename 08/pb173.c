@@ -93,6 +93,9 @@ static int my_init(void)
     while ((pdev = pci_get_device(PCI_ANY_ID, PCI_ANY_ID, pdev))){
         struct pdev_struct *p;
         p = kmalloc(sizeof(*p), GFP_KERNEL);
+	if (!p) {
+	    return -EIO;
+	}
         /* increase reference counter */
         p->pdev = pci_dev_get(pdev);
         /* add device struct to list */
