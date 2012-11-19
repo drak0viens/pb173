@@ -40,17 +40,14 @@ int my_probe(struct pci_dev * pdev, const struct pci_device_id *id)
     pci_set_drvdata(pdev, virt);
 
     /* read 8 bytes from region 0 */
-    info_low = readw(virt);
-    info_up = readw(((char*) virt) + 4);
- 
-    info_low = be32_to_cpu(info_low);
-    info_up = be32_to_cpu(info_up);
+    info_low = readl(virt);
+    info_up = readl((((char*) virt) + 4));
     
     /* decode info */
     printk(KERN_INFO "Bridge revision:\n");
     printk(KERN_INFO "Major revision - %x\n", ((char*) &info_low)[2]);
     printk(KERN_INFO "Minor revision - %x\n", ((char*) &info_low)[3]); 
-  
+ 
     printk(KERN_INFO "Bridge built time:\n");
     printk(KERN_INFO "Year (+2k) - %d\n", (((char*) &info_up)[0] & 0x000000f0) >> 4);
     printk(KERN_INFO "Month - %d\n", ((char*) &info_up)[0] & 0x0000000f);
@@ -149,3 +146,4 @@ module_init(my_init);
 module_exit(my_exit);
 
 MODULE_LICENSE("GPL");
+
