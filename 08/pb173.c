@@ -42,7 +42,10 @@ int my_probe(struct pci_dev * pdev, const struct pci_device_id *id)
     /* read 8 bytes from region 0 */
     info_low = readl(virt);
     info_up = readl((((char*) virt) + 4));
-    
+
+    info_low = be32_to_cpu(info_low);
+    info_up = be32_to_cpu(info_up);
+
     /* decode info */
     printk(KERN_INFO "Bridge revision:\n");
     printk(KERN_INFO "Major revision - %x\n", ((char*) &info_low)[2]);
