@@ -22,6 +22,7 @@ MODULE_DEVICE_TABLE(pci, my_table);
 
 int my_probe(struct pci_dev * pdev, const struct pci_device_id *id)
 {
+    int err;
     void * virt;
     u32 info_low, info_up;
     printk(KERN_INFO "[Probe]\n");
@@ -30,12 +31,27 @@ int my_probe(struct pci_dev * pdev, const struct pci_device_id *id)
     printk(KERN_INFO "func: %2.x\n", PCI_FUNC(pdev->devfn));
 
     /* enable device, request region and print phys address */    
-    pci_enable_device(pdev);
-    pci_request_region(pdev, 0, "my_resource");
+    err = pci_enable_device(pdev);
+    if (err) {
+        printk(KERN_INFO "Error: device can not be enabled\n");  
+        return -EIO;
+    }
+    
+    err = pci_request_region(pdev, 0, "my_resource");
+    if (err){
+        printk(KERN_INFO "Error: can not reserve PCI I/O and memory resource\n");  
+	return -EBUSY;
+    }
+    
     printk(KERN_INFO "phys addr bar 0: %llx\n", pci_resource_start(pdev, 0));
     
     /* map region 0 */
     virt = pci_ioremap_bar(pdev, 0);
+    if (!virt) {
+	printk(KERN_INFO "Error: can not remap memory\n");  
+	return -ENOMEM;
+    }
+    
     /* register structure */
     pci_set_drvdata(pdev, virt);
 
@@ -111,7 +127,7 @@ static void my_exit(void)
     struct pdev_struct *p, *p1;
     struct pci_dev * pdev = NULL;
 
-    /* iterate all pci devices */
+    /* iterate available pci devices in system */
     while ((pdev = pci_get_device(PCI_ANY_ID, PCI_ANY_ID, pdev))){
         bool found = false;
         
@@ -126,12 +142,35 @@ static void my_exit(void)
             } 
         }
 
-        /* no match found - device was hotplugged in */
+        /* no match found - device was plugged in */
         if (!found){
             /* print vendorID:deviceID */
             printk(KERN_INFO "%2.x:%2.x\n", pdev->vendor, pdev->device);     
         }
-    }
+    }    
+        
+    /* iterate listed pci devices */
+    list_for_each_entry(p, &pdev_list, list){
+        bool found = false;    
+      
+	/* try to find match in system (domain:bus:slot.func) */
+        while ((pdev = pci_get_device(PCI_ANY_ID, PCI_ANY_ID, pdev))){
+	    if (pci_domain_nr(pdev->bus) == pci_domain_nr(p->pdev->bus)
+                && pdev->bus->number == p->pdev->bus->number
+                && PCI_SLOT(pdev->devfn) == PCI_SLOT(p->pdev->devfn) 
+                && PCI_FUNC(pdev->devfn) == PCI_FUNC(p->pdev->devfn)) 
+            {
+                    found = true;
+            }
+	
+	/* no match found - device was removed */
+        if (!found){
+            /* print vendorID:deviceID */
+            printk(KERN_INFO "%2.x:%2.x\n", pdev->vendor, pdev->device);     
+           }
+	}
+    } 
+   
   
    list_for_each_entry_safe(p, p1, &pdev_list, list){
         /* decrease reference counter */
@@ -149,4 +188,3 @@ module_init(my_init);
 module_exit(my_exit);
 
 MODULE_LICENSE("GPL");
-
