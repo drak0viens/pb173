@@ -126,10 +126,14 @@ int my_probe(struct pci_dev * pdev, const struct pci_device_id *id)
 	printk(KERN_INFO "Time - %d:%d\n", ((char*) &info_up)[2], ((char*) &info_up)[3]);
 	
 	/* allocate ports */
-	combo_port_raised = request_region(REG_RAISED, 1, "combo card");
-	combo_port_enable = request_region(REG_ENABLE, 1, "combo card");
-	combo_port_raise = request_region(REG_RAISE, 1, "combo card");
-	combo_port_ack = request_region(REG_ACK, 1, "combo card");
+	if (!combo_port_raised)
+		combo_port_raised = request_region(REG_RAISED, 1, "combo card");
+	if (!combo_port_enable)
+		combo_port_enable = request_region(REG_ENABLE, 1, "combo card");
+	if (!combo_port_raise)
+		combo_port_raise = request_region(REG_RAISE, 1, "combo card");
+	if (!combo_port_ack)
+		combo_port_ack = request_region(REG_ACK, 1, "combo card");
 	
 	if (!combo_port_raised || !combo_port_enable || !combo_port_raise || !combo_port_ack)
 		return -EBUSY;
@@ -198,10 +202,14 @@ printk(KERN_INFO "--Timer stopped\n");
 		kfree(p->my_data);
 printk(KERN_INFO "--IRQs unmapped\n");	
 	/* deallocate ports */
-	release_region(REG_RAISED, 1);
-	release_region(REG_ENABLE, 1);
-	release_region(REG_RAISE, 1);
-	release_region(REG_ACK, 1);
+	if (combo_port_raised)	
+		release_region(REG_RAISED, 1);
+	if (combo_port_enable)
+		release_region(REG_ENABLE, 1);
+	if (combo_port_raise)
+		release_region(REG_RAISE, 1);
+	if (combo_port_ack)
+		release_region(REG_ACK, 1);
 printk(KERN_INFO "--Ports deallocated\n");	
 	/* unmap memory, release region and disable device */
 	iounmap(p->virt);
