@@ -13,7 +13,6 @@
 #define REG_RAISE  0x0060
 #define REG_ACK    0x0064
 
-void * my_data = NULL;
 struct resource * combo_port_raised = NULL;
 struct resource * combo_port_enable = NULL;
 struct resource * combo_port_raise = NULL;
@@ -76,6 +75,7 @@ int my_probe(struct pci_dev * pdev, const struct pci_device_id *id)
 {
     int err;
     void * virt;
+    char * my_data;
     struct timer_list my_timer;
     struct pdev_help_struct *p;
     u32 info_low, info_up;
