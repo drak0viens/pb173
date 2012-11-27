@@ -25,11 +25,9 @@ struct pdev_struct {
 
 /* help struct associated with pdev */
 struct pdev_help_struct {
-	void * virt;
-	struct timer_list * timer;
+	void * virt; /* mapped bar 0 */
+	struct timer_list * timer; /* irq timer */
 };
-
-LIST_HEAD(pdev_list);
 
 MODULE_DEVICE_TABLE(pci, my_table);
 
@@ -39,7 +37,6 @@ static irqreturn_t my_handler(int irq, void * data, struct pt_regs * pt)
         struct pdev_help_struct * p = (struct pdev_help_struct *) data;
 	void * virt = p->virt;
 
-printk(KERN_INFO "--Handling interrupt\n");
 	/* get register 0x0040 */
 	state = readl(REG_RAISED(virt));
 	printk(KERN_INFO "Register 0x0040: %x\n", state);
@@ -49,7 +46,6 @@ printk(KERN_INFO "--Handling interrupt\n");
 	
 	/* acknowledge interrupt */
 	writel(0x1000, REG_ACK(virt));
-printk(KERN_INFO "--Interrupt acknowledged\n");
 	return IRQ_HANDLED;
 }
 
@@ -58,11 +54,9 @@ static void raise_intr(unsigned long data)
 	struct pdev_help_struct * p = (struct pdev_help_struct *) data;
 	void * virt = p->virt;
 
-printk(KERN_INFO "--Rising interrupt\n");
 	/* raise interrupt */
 	writel(0x1000, REG_RAISE(virt));  
 	
-printk(KERN_INFO "--Re-setting timer\n");	 
 	 /* set timer */
 	mod_timer(p->timer, jiffies + msecs_to_jiffies(100));
 }
@@ -93,13 +87,10 @@ int my_probe(struct pci_dev * pdev, const struct pci_device_id *id)
 	return -EBUSY;
 	}
 	
-	/* print phys address */
-	printk(KERN_INFO "phys addr bar 0: %llx\n", pci_resource_start(pdev, 0));
-	
 	/* map region 0 */
 	virt = pci_ioremap_bar(pdev, 0);
 	if (!virt) {
-		printk(KERN_INFO "Error: can not remap memory\n");  
+		printk(KERN_INFO "Error: can not remap bar 0\n");  
 		return -ENOMEM;
 	}
 
@@ -115,7 +106,6 @@ int my_probe(struct pci_dev * pdev, const struct pci_device_id *id)
 	
 	/* set timer to raise interrupts periodicaly */
 	setup_timer(my_timer, raise_intr, (unsigned long) p);
-printk(KERN_INFO "--Timer setup done\n");	
 
 	/* store pointers to help struct */
 	p->virt = virt;
@@ -130,10 +120,10 @@ printk(KERN_INFO "--Timer setup done\n");
 		printk(KERN_INFO "Error: can not map interrupts\n");
 		return err;
 	}
-printk(KERN_INFO "--Interrupts mapped\n");	
+	
 	/* enable interrupts */
 	writel(0x1000, REG_ENABLE(virt));
-printk(KERN_INFO "--Interrupts enabled, running timer\n");
+	
 	/* trigger timer */
 	mod_timer(my_timer, jiffies + msecs_to_jiffies(100)); 
 	return 0;
@@ -155,16 +145,14 @@ void my_remove(struct pci_dev * pdev)
 	del_timer_sync(p->timer);
 	if (p->timer)
 		kfree(p->timer);
-printk(KERN_INFO "--Timer stopped\n");  
+	
 	/* unmap irqs */
 	free_irq(pdev->irq, p);
   
-printk(KERN_INFO "--IRQs unmapped\n");	
 	/* unmap memory, release region and disable device */
 	iounmap(p->virt);
 	pci_release_region(pdev, 0);
 	pci_disable_device(pdev);
-printk(KERN_INFO "--Device disabled\n");	
 	kfree(p);
 }
 
