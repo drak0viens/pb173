@@ -1,19 +1,13 @@
-KDIR=/lib/modules/$(shell uname -r)/build
-KBUILD=$(MAKE) -C $(KDIR) M=$(PWD)
+CC=gcc
+LD=gcc
+CFLAGS=-Wall -O2 -g
+LDFLAGS=
 
-obj-m := pb173.o
+all: pb173
 
-modules:
-	$(KBUILD) modules
+pb173: pb173.o
 
 clean:
-	$(KBUILD) clean
-	@rm -f Module.symvers
+	rm -f *.o
 
-modules_install:
-	$(KBUILD) modules_install
-
-cscope:
-	cscope -b `find $(src) -type f -name '*.[ch]'`
-
-.PHONY: modules clean modules_install cscope
+.PHONY: all clean
