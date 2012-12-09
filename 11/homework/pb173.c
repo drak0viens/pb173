@@ -10,10 +10,15 @@
 #include <linux/miscdevice.h>
 #include <linux/fs.h>
 
-#define REG_RAISED(virt) (virt + 0x0040)
-#define REG_ENABLE(virt) (virt + 0x0044)
-#define REG_RAISE(virt)  (virt + 0x0060)
-#define REG_ACK(virt)	 (virt + 0x0064)
+#define REG_RAISED(bar) (bar + 0x0040)
+#define REG_ENABLE(bar) (bar + 0x0044)
+#define REG_RAISE(bar)  (bar + 0x0060)
+#define REG_ACK(bar)	(bar + 0x0064)
+#define REG_SRC(bar)    (bar + 0x0080)
+#define REG_DST(bar)    (bar + 0x0084)
+#define REG_COUNT(bar)  (bar + 0x0088)
+#define REG_CMD(bar)    (bar + 0x008c)
+
 
 /* COMBO card - 0x18ec:0xc058 */
 struct pci_device_id my_table[] = {
@@ -41,7 +46,8 @@ MODULE_DEVICE_TABLE(pci, my_table);
 
 void tasklet_fn(unsigned long data)
 {
-	printk(KERN_INFO "%s /n", (char *) data);
+	printk(KERN_INFO "Running tasklet..\n");
+	printk(KERN_INFO "%s \n", (char *) data);
 }
 
 static irqreturn_t my_handler(int irq, void * data, struct pt_regs * pt)
@@ -62,7 +68,7 @@ static irqreturn_t my_handler(int irq, void * data, struct pt_regs * pt)
 
 	if (irq == 0x8){
 		printk(KERN_INFO "INT 8 \n");
-		tasklet_init(task, tasklet_fn, (unsigned long) p->dma_virt + 20);
+		tasklet_init(task, tasklet_fn, (unsigned long) p->dma_virt + 0x14);
 		tasklet_schedule(task);
 		printk(KERN_INFO "Tasklet scheduled \n");
 	}
@@ -150,45 +156,39 @@ int my_probe(struct pci_dev * pdev, const struct pci_device_id *id)
 	
 	/* transfer 1 - PCI -> PowerPC */
 	/* src addr */
-	writel((unsigned long) dma_phys, (virt + 0x0080));
+	writel((unsigned long) dma_phys, REG_SRC(virt));
 
 	/* dst addr */
-	writel(0x40000, (virt + 0x0084));
+	writel(0x40000, REG_DST(virt));
 
 	/* set transfer count */
-	writel(10, (virt + 0x0088));
+	writel(10, REG_COUNT(virt));
 
 	/* set command */
-	cmd = 1;
-	cmd |= 2 << 1;
-	cmd |= 4 << 4;
-	cmd |= 1 << 7;
+	cmd = 1 | 2 << 1 | 4 << 4 | 1 << 7;
 
-	writel(cmd, virt + 0x008c);
+	writel(cmd, REG_CMD(virt));
 
 	while (cmd & 1)
-		cmd = readl(virt + 0x008c);
+		cmd = readl(REG_CMD(virt));
 
 	/* transfer 2 - PowerPC -> PCI */
 	/* src addr */
-	writel(0x40000, virt + 0x0080);
+	writel(0x40000, REG_SRC(virt));
 
 	/* dst addr */
-	writel((unsigned long) dma_phys + 0xa, virt + 0x0084);
+	writel((unsigned long) dma_phys + 0xa, REG_DST(virt));
 
 	/* set transfer count */
-	writel(10, virt + 0x0088);
+	writel(10, REG_COUNT(virt));
 
 	/* set command */
-	cmd = 1;
-	cmd |= 4 << 1;
-	cmd |= 2 << 4;
-	cmd |= 1 << 7;
+	cmd = 1 | 4 << 1 | 2 << 4 | 1 << 7;
 
-	writel(cmd, virt + 0x008c);
+	writel(cmd, REG_CMD(virt));
 
 	while (cmd & 1)
-		cmd = readl(virt + 0x008c);
+		cmd = readl(REG_CMD(virt));
 
 	printk(KERN_INFO "%s\n", (char *) dma_virt_addr);
 
@@ -197,20 +197,20 @@ int my_probe(struct pci_dev * pdev, const struct pci_device_id *id)
 	
 	/* transfer 3 - PowerPC -> PCI with interrupt */
 	/* src addr */
-	writel(0x40000, virt + 0x0080);
+	writel(0x40000, REG_SRC(virt));
 
 	/* dst addr */
-	writel((unsigned long) dma_phys + 0x14, virt + 0x0084);
+	writel((unsigned long) dma_phys + 0x14, REG_DST(virt));
 
 	/* set transfer count */
-	writel(10, virt + 0x0088);
+	writel(10, REG_COUNT(virt));
 
 	/* set command */
-	cmd = 1;
-	cmd |= 4 << 1;
-	cmd |= 2 << 4;
+	cmd = 1 | 4 << 1 | 2 << 4;
 
-	writel(cmd, virt + 0x008c);
+	writel(cmd, REG_CMD(virt));
+
+printk(KERN_INFO "DMA transfer with interrupt has been set.");
 
 	/* set timer to raise interrupts periodicaly */
 	setup_timer(my_timer, raise_intr, (unsigned long) p);
@@ -251,6 +251,7 @@ void my_remove(struct pci_dev * pdev)
 	if (task){
 		tasklet_kill(task);		
 		kfree(task);
+		task = NULL;
 	}
 
 	/* get help struct associated with current pci device */
@@ -284,7 +285,7 @@ int my_mmap(struct file *filp, struct vm_area_struct *vma){
 		return -EINVAL;
 
 	if (!dma_virt_addr)
-		return -EINVAL;
+		return -EBUSY;
 
 	return remap_pfn_range(vma, vma->vm_start, virt_to_phys(dma_virt_addr) >> PAGE_SHIFT, PAGE_SIZE, vma->vm_page_prot);
 	
@@ -303,10 +304,10 @@ struct miscdevice misc = {
 };
 
 struct pci_driver my_driver = {
-.name = "my_driver",
-.id_table = my_table,
-.probe = my_probe,
-.remove = my_remove,
+	.name = "my_driver",
+	.id_table = my_table,
+	.probe = my_probe,
+	.remove = my_remove,
 };
 
 
