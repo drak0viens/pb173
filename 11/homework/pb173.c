@@ -193,25 +193,7 @@ int my_probe(struct pci_dev * pdev, const struct pci_device_id *id)
 		cmd = readl(REG_CMD(virt));
 
 	printk(KERN_INFO "DMA page content: %s\n", (char *) dma_virt_addr);
-
-	/* enable interrupts 0x100 for DMA */
-	writel(0x100, REG_ENABLE(virt));
-
-	/* transfer 3 - PowerPC -> PCI with interrupt */
-	/* src addr */
-	writel(0x40000, REG_SRC(virt));
-
-	/* dst addr */
-	writel((unsigned long) dma_phys + 0x14, REG_DST(virt));
-
-	/* set transfer count */
-	writel(10, REG_COUNT(virt));
-
-	/* set DMA command with interrupt */
-	cmd = 1 | 4 << 1 | 2 << 4;
-
-	writel(cmd, REG_CMD(virt));
-
+	
 	/* set timer to raise interrupts periodicaly */
 	setup_timer(&p->timer, raise_intr, (unsigned long) p);
 
@@ -230,8 +212,26 @@ int my_probe(struct pci_dev * pdev, const struct pci_device_id *id)
 		return err;
 	}
 	
-	/* enable interrupts */
+	/* enable interrupts 0x1000 */
 	writel(0x1000, REG_ENABLE(virt));
+
+	/* enable interrupts 0x100 for DMA */
+	writel(0x100, REG_ENABLE(virt));
+
+	/* transfer 3 - PowerPC -> PCI with interrupt */
+	/* src addr */
+	writel(0x40000, REG_SRC(virt));
+
+	/* dst addr */
+	writel((unsigned long) dma_phys + 0x14, REG_DST(virt));
+
+	/* set transfer count */
+	writel(10, REG_COUNT(virt));
+
+	/* set DMA command with interrupt */
+	cmd = 1 | 4 << 1 | 2 << 4;
+
+	writel(cmd, REG_CMD(virt));
 	
 	/* trigger timer */
 	mod_timer(&p->timer, jiffies + msecs_to_jiffies(100)); 
