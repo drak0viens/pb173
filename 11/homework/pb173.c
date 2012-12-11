@@ -36,7 +36,7 @@ struct pdev_help_struct {
 	void * virt; /* mapped bar 0 */
 	void * dma_virt;
 	dma_addr_t dma_phys;
-	struct timer_list * timer; /* irq timer */
+	struct timer_list timer; /* irq timer */
 };
 
 struct tasklet_struct * task = NULL;
@@ -46,33 +46,39 @@ MODULE_DEVICE_TABLE(pci, my_table);
 
 void tasklet_fn(unsigned long data)
 {
-	printk(KERN_INFO "Running tasklet..\n");
-	printk(KERN_INFO "%s \n", (char *) data);
+	/* tasklet prints string on given address */
+	printk(KERN_INFO "DMA page + 20 content: %s \n", (char *) data);
 }
 
 static irqreturn_t my_handler(int irq, void * data, struct pt_regs * pt)
 {
-	int state;
+	int interrupt;
         struct pdev_help_struct * p = (struct pdev_help_struct *) data;
 	void * virt = p->virt;
 
 	/* get register 0x0040 */
-	state = readl(REG_RAISED(virt));
-	printk(KERN_INFO "Register 0x0040: %x\n", state);
-	
-	if (!state)
+	interrupt = readl(REG_RAISED(virt));
+	printk(KERN_INFO "Register 0x0040: %x\n", interrupt);
+
+	if (!interrupt)
 		return IRQ_NONE;
 	
 	/* acknowledge interrupt */
-	writel(state, REG_ACK(virt));
+	writel(interrupt, REG_ACK(virt));
 
-	if (irq == 0x8){
-		printk(KERN_INFO "INT 8 \n");
+	/* 0x100 - DMA transfer interrupt */
+	if (interrupt == 0x100){
+		int cmd;
+
+		/* ACKINT */
+		cmd = readl(REG_CMD(virt));
+		cmd |= 1 << 31;
+		writel(cmd, REG_CMD(virt));
+
+		/* schedule tasklet - print DMA page + 20 */
 		tasklet_init(task, tasklet_fn, (unsigned long) p->dma_virt + 0x14);
 		tasklet_schedule(task);
-		printk(KERN_INFO "Tasklet scheduled \n");
 	}
-
 	return IRQ_HANDLED;
 }
 
@@ -85,7 +91,7 @@ static void raise_intr(unsigned long data)
 	writel(0x1000, REG_RAISE(virt));  
 	
 	 /* set timer */
-	mod_timer(p->timer, jiffies + msecs_to_jiffies(100));
+	mod_timer(&p->timer, jiffies + msecs_to_jiffies(100));
 }
 
 int my_probe(struct pci_dev * pdev, const struct pci_device_id *id)
@@ -93,7 +99,6 @@ int my_probe(struct pci_dev * pdev, const struct pci_device_id *id)
 	int err, cmd;
 	void * virt;
 	dma_addr_t dma_phys;
-	struct timer_list * my_timer;
 	struct pdev_help_struct *p;
 	
 	printk(KERN_INFO "[Probe]\n");
@@ -136,16 +141,13 @@ int my_probe(struct pci_dev * pdev, const struct pci_device_id *id)
 		return -ENOMEM;
 	}
 
-        my_timer = kmalloc(GFP_KERNEL, sizeof(*my_timer));
-	if (!my_timer)
-		return -ENOMEM;
-
 	/* allocate pdev help structure */
 	p = kmalloc(sizeof(*p), GFP_KERNEL);
 	if (!p) {
 		return -ENOMEM;
 	}
-	
+
+	/* allocate DMA page */	
 	dma_virt_addr = dma_alloc_coherent(&pdev->dev, PAGE_SIZE, &dma_phys, GFP_KERNEL);
 	if (!dma_virt_addr){
 		printk(KERN_INFO "Error: can not allocate dma memory");
@@ -190,11 +192,11 @@ int my_probe(struct pci_dev * pdev, const struct pci_device_id *id)
 	while (cmd & 1)
 		cmd = readl(REG_CMD(virt));
 
-	printk(KERN_INFO "%s\n", (char *) dma_virt_addr);
+	printk(KERN_INFO "DMA page content: %s\n", (char *) dma_virt_addr);
 
-	/* enable interrupts */
+	/* enable interrupts 0x100 for DMA */
 	writel(0x100, REG_ENABLE(virt));
-	
+
 	/* transfer 3 - PowerPC -> PCI with interrupt */
 	/* src addr */
 	writel(0x40000, REG_SRC(virt));
@@ -205,21 +207,18 @@ int my_probe(struct pci_dev * pdev, const struct pci_device_id *id)
 	/* set transfer count */
 	writel(10, REG_COUNT(virt));
 
-	/* set command */
+	/* set DMA command with interrupt */
 	cmd = 1 | 4 << 1 | 2 << 4;
 
 	writel(cmd, REG_CMD(virt));
 
-printk(KERN_INFO "DMA transfer with interrupt has been set.");
-
 	/* set timer to raise interrupts periodicaly */
-	setup_timer(my_timer, raise_intr, (unsigned long) p);
+	setup_timer(&p->timer, raise_intr, (unsigned long) p);
 
 	/* store pointers to help struct */
 	p->virt = virt;
 	p->dma_virt = dma_virt_addr;
 	p->dma_phys = dma_phys;
-	p->timer = my_timer;
 	
 	/* associate help struct with current pci device */
 	pci_set_drvdata(pdev, p);
@@ -235,7 +234,7 @@ printk(KERN_INFO "DMA transfer with interrupt has been set.");
 	writel(0x1000, REG_ENABLE(virt));
 	
 	/* trigger timer */
-	mod_timer(my_timer, jiffies + msecs_to_jiffies(100)); 
+	mod_timer(&p->timer, jiffies + msecs_to_jiffies(100)); 
 	return 0;
 }
 
@@ -248,6 +247,7 @@ void my_remove(struct pci_dev * pdev)
 	printk(KERN_INFO "slot: %2.x\n", PCI_SLOT(pdev->devfn));
 	printk(KERN_INFO "func: %2.x\n", PCI_FUNC(pdev->devfn));	
 
+	/* stop tasklet */
 	if (task){
 		tasklet_kill(task);		
 		kfree(task);
@@ -258,13 +258,12 @@ void my_remove(struct pci_dev * pdev)
 	p = pci_get_drvdata(pdev);
 	
 	/* stop timer */
-	del_timer_sync(p->timer);
-	if (p->timer)
-		kfree(p->timer);
+	del_timer_sync(&p->timer);
 	
 	/* unmap irqs */
 	free_irq(pdev->irq, p);
 	
+	/* free DMA memory */
 	dma_free_coherent(&pdev->dev, PAGE_SIZE, p->dma_virt, p->dma_phys);
   
 	/* unmap memory, release region and disable device */
@@ -278,12 +277,15 @@ int my_mmap(struct file *filp, struct vm_area_struct *vma){
 	unsigned long pgoff;
 	pgoff = vma->vm_pgoff;
 
+	/* check memory range */
 	if((vma->vm_end - vma->vm_start) > PAGE_SIZE)
 		return -EINVAL;
 	
+	/* set mmap read-only */
 	if ((vma->vm_flags & (VM_WRITE | VM_READ)) != VM_READ)
 		return -EINVAL;
 
+	/* return error if DMA has not been allocated yet */
 	if (!dma_virt_addr)
 		return -EBUSY;
 
@@ -313,6 +315,7 @@ struct pci_driver my_driver = {
 
 static int my_init(void)
 {
+	/* register device for mmap */
 	misc_register(&misc);
 
 	/* register my_driver */
@@ -321,6 +324,7 @@ static int my_init(void)
 
 static void my_exit(void)
 {
+ 	/* deregister device */
 	misc_deregister(&misc);
 
 	/* unregister my_driver */
