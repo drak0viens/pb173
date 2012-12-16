@@ -1,14 +1,5 @@
 #include <linux/module.h>
-#include <linux/uaccess.h>
 #include <linux/miscdevice.h>
-#include <linux/fs.h>
-#include <linux/string.h>
-#include <linux/slab.h>
-#include <linux/debugfs.h>
-#include <linux/kernel.h>
-#include <linux/mm.h>
-#include <linux/vmalloc.h>
-#include <linux/io.h>
 #include <linux/etherdevice.h>
 #include <linux/timer.h>
 #include <linux/netdevice.h>
@@ -103,9 +94,9 @@ struct miscdevice misc = {
 static int my_init(void)
 {
 	int err;
-
+	/* init fifo */
 	INIT_KFIFO(queue);
-	
+	/* register device */
 	misc_register(&misc);
 	
 	ndev = alloc_etherdev(sizeof(struct timer_list));
