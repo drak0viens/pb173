@@ -35,8 +35,8 @@ netdev_tx_t my_start_xmit(struct sk_buff * skb, struct net_device * dev)
 	printk(KERN_INFO "My_start_xmit netdev..\n");
 	/* hexdump packet data */
 	print_hex_dump_bytes("", DUMP_PREFIX_OFFSET, skb->data, skb->len);
-	/* copy sk_buff to queue */
-	kfifo_in(&queue, (char *) &skb, sizeof(struct sk_buff));
+	/* copy data to queue */
+	kfifo_in(&queue, skb->data, skb->len);
 	/* free sk_buff */
 	dev_kfree_skb(skb);
 	return NETDEV_TX_OK;
@@ -73,11 +73,19 @@ struct net_device_ops ndev_ops = {
 };
 
 ssize_t my_write(struct file *filp, const char __user *buf, size_t count, loff_t *offp){
+	struct sk_buff * pack;
 	char* data = (char*) kmalloc(count, GFP_KERNEL);
 	/* copy data from user */
 	if (copy_from_user(data, buf, count)) return -EFAULT;
-	/* send data directly */
-	netif_rx((struct sk_buff *) data);
+	/* allocate sk_buff */
+	pack = netdev_alloc_skb(ndev, count);
+	/* set data and len */
+	pack->data = data;
+	pack->len = count;
+	/* set protocol type */
+ 	pack->protocol = eth_type_trans(pack, ndev);
+	/* send packet */
+	netif_rx(pack);
 	kfree(data);
 	return 0;
 }
