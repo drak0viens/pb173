@@ -115,6 +115,8 @@ static int my_init(void)
 		printk(KERN_INFO "Can not allocate ethdev..");
 		return -EIO;
 	}
+	/* set device name */
+	strcpy(ndev->name, "myeth0");
 	/* set net device ops */
 	ndev->netdev_ops = &ndev_ops;
 	/* set mac addr */
