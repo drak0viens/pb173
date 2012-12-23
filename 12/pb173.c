@@ -74,20 +74,20 @@ struct net_device_ops ndev_ops = {
 
 ssize_t my_write(struct file *filp, const char __user *buf, size_t count, loff_t *offp){
 	struct sk_buff * pack;
-	char* data = (char*) kmalloc(count, GFP_KERNEL);
-	/* copy data from user */
-	if (copy_from_user(data, buf, count)) return -EFAULT;
 	/* allocate sk_buff */
 	pack = netdev_alloc_skb(ndev, count);
-	/* set data and len */
-	pack->data = data;
 	pack->len = count;
+	/* copy data from user */
+	if (copy_from_user(pack->data, buf, count))
+	{
+		dev_kfree_skb(pack);
+		return -EFAULT;
+	}	
 	/* set protocol type */
  	pack->protocol = eth_type_trans(pack, ndev);
 	/* send packet */
 	netif_rx(pack);
-	kfree(data);
-	return 0;
+	return count;
 }
 
 ssize_t my_read(struct file *filp, char __user *buf, size_t count, loff_t *offp){
